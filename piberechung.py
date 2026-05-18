@@ -94,6 +94,20 @@ def _bs_multi(n: int, workers: int) -> tuple:
 
 # ── Pi-Berechnung ──────────────────────────────────────────────────────────────
 
+def _pi_iterativ(stellen: int) -> str:
+    """Einfache iterative Chudnovsky-Berechnung (wie piberechung-old.py)."""
+    getcontext().prec = stellen + 20
+    C = 426880 * Decimal(10005).sqrt()
+    K, M, X, S = Decimal(6), Decimal(1), Decimal(1), Decimal(13591409)
+    for k in range(1, stellen // 14 + 2):
+        M = M * (K ** 3 - 16 * K) / (k ** 3)
+        X *= -262537412640768000
+        S += M * (13591409 + 545140134 * k) / X
+        K += 12
+    getcontext().prec = stellen + 1
+    return str(+(C / S))
+
+
 def _pi_mpmath(stellen: int) -> str:
     from mpmath import mp
     mp.dps = stellen + 5
@@ -166,6 +180,10 @@ def main():
         "-w", "--workers", type=int, default=1, metavar="N",
         help="Parallele Worker-Prozesse (0 = alle CPUs, Standard: 1 = sequenziell)"
     )
+    parser.add_argument(
+        "-c", "--compare", action="store_true",
+        help="Vergleich mit iterativem Algorithmus (wie piberechung-old.py)"
+    )
     args = parser.parse_args()
 
     if args.stellen < 1:
@@ -190,6 +208,18 @@ def main():
             print("Tipp:     pip install gmpy2  →  GMP-Arithmetik, deutlich schneller", file=sys.stderr)
         if workers == 1 and args.stellen >= 10_000_000:
             print(f"Tipp:     --workers 0  →  alle {multiprocessing.cpu_count()} Kerne nutzen", file=sys.stderr)
+
+    if args.compare:
+        print(f"\n--- Vergleich mit iterativem Algorithmus ---", file=sys.stderr)
+        print(f"Berechne {args.stellen} Stellen iterativ …", file=sys.stderr)
+        t0 = time.perf_counter()
+        _pi_iterativ(args.stellen)
+        t_alt = time.perf_counter() - t0
+        speedup = t_alt / dauer if dauer > 0 else float("inf")
+        breite = max(len(f"{t_alt:.4f}s"), len(f"{dauer:.4f}s"))
+        print(f"  Iterativ (old):  {t_alt:{breite}.4f}s", file=sys.stderr)
+        print(f"  Optimiert (neu): {dauer:{breite}.4f}s", file=sys.stderr)
+        print(f"  Speedup:         {speedup:.1f}×", file=sys.stderr)
 
 
 if __name__ == "__main__":
